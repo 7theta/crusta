@@ -22,7 +22,7 @@
   "Executes the 'command' represented as a string or a sequence of strings
   in a separate process and returns a reference to the process.
 
-  Additional keyword parameters can control the behaviour:
+  Additional keyword parameters can be used to control the behaviour:
     :environment - A hash map of the variables and their values to be
        merged into the existing environment
     :clear-environment - A boolean indicating whether the existing
@@ -88,10 +88,10 @@
 (defn run
   "Executes the 'command' represented as a string or a sequence of strings
   in a separate process and returns the contents of stdout when the process
-  completed. If the process terminated abnormally, a exception is thrown
+  completes. If the process terminates abnormally, an exception is thrown
   with the contents of stderr.
 
-  Additional keyword parameters can control the behaviour:
+  Additional keyword parameters can be used to control the behaviour:
     :environment - A hash map of the variables and their values to be
        merged into the existing environment
     :clear-environment - A boolean indicating whether the existing
