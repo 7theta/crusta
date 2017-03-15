@@ -10,6 +10,7 @@
 
 (ns crusta.core
   (:require [utilis.fn :refer [apply-kw]]
+            [utilis.string :refer [split]]
             [clojure.java.io :as io]
             [clojure.string :as st])
   (:import [java.io InputStream OutputStream BufferedReader]))
@@ -122,7 +123,7 @@
   [command]
   (into-array String (-> (cond->> command
                            (not (string? command)) (st/join " "))
-                         (st/split #"\s"))))
+                         (split #"\s+" :quote-chars [\" \']))))
 
 (defn- stream->seq
   [stream]
