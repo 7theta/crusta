@@ -8,7 +8,7 @@
 ;;   the terms of this license.
 ;;   You must not remove this notice, or any others, from this software.
 
-(defproject com.7theta/crusta "0.1.4"
+(defproject com.7theta/crusta "0.2.0"
   :description "A library for managing execution of external programs"
   :url "https://github.com/7theta/crusta"
   :license {:name "Eclipse Public License"
