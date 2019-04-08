@@ -123,15 +123,10 @@
 
 (defn- prepare-command
   [command & {:keys [wrap-shell]}]
-  (let [command (if wrap-shell
-                  (->> [(if (not (string? command))
-                          (st/join " " command)
-                          command)]
-                       (concat ["sh" "-c"])
-                       (map #(st/replace % #"'" "")))
-                  (-> (cond->> command
-                        (not (string? command)) (st/join " "))
-                      (split #"\s+" :quote-chars [\" \'])))]
+  (let [command (-> (cond->> command (not (string? command)) (st/join " "))
+                    (split #"\s+" :quote-chars [\" \'])
+                    (->> (map #(st/replace % #"'" "")))
+                    (cond->> wrap-shell (concat ["sh" "-c"])))]
     (let [command-list (java.util.ArrayList.)]
       (doseq [chunk command]
         (.add command-list chunk))
