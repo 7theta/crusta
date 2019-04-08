@@ -8,13 +8,14 @@
 ;;   the terms of this license.
 ;;   You must not remove this notice, or any others, from this software.
 
-(defproject com.7theta/crusta "0.1.4"
+(defproject com.7theta/crusta "0.2.0"
   :description "A library for managing execution of external programs"
   :url "https://github.com/7theta/crusta"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.9.0"]
                  [com.7theta/utilis "1.0.5"]]
+  :repl-options {:init-ns crusta.core}
   :profiles {:dev {:global-vars {*warn-on-reflection* true}
                    :dependencies [[org.clojure/tools.namespace "0.2.11"]]
                    :source-paths ["dev"]}}
