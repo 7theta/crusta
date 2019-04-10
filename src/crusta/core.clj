@@ -34,9 +34,8 @@
     :redirect-stderr - Redirects stderr into stdout"
   [command & {:keys [environment clear-environment
                      directory
-                     redirect-stderr
-                     wrap-shell]}]
-  (let [builder (ProcessBuilder. (prepare-command command :wrap-shell wrap-shell))]
+                     redirect-stderr]}]
+  (let [builder (ProcessBuilder. (prepare-command command))]
     (when clear-environment (.clear (.environment builder)))
     (doseq [[k v] environment] (.put (.environment builder) k v))
     (when directory (.directory builder (io/file directory)))
@@ -104,8 +103,7 @@
     :redirect-stderr - Redirects stderr into stdout"
   [command & {:keys [environment clear-environment
                      directory
-                     redirect-stderr
-                     wrap-shell]
+                     redirect-stderr]
               :as options}]
   (future
     (let [process (apply-kw exec command options)
@@ -122,11 +120,13 @@
 ;;; Implementation
 
 (defn- prepare-command
-  [command & {:keys [wrap-shell]}]
-  (let [command (-> (cond->> command (not (string? command)) (st/join " "))
-                    (split #"\s+" :quote-chars [\" \'])
-                    (->> (map #(st/replace % #"'" "")))
-                    (cond->> wrap-shell (concat ["sh" "-c"])))]
+  [command]
+  (let [split #(split % #"\s+" :quote-chars [\" \'])
+        command (->> (cond-> command (string? command) split)
+                     (mapcat (fn [segment]
+                               (if (vector? segment)
+                                 [(st/join " " segment)]
+                                 (split segment)))))]
     (let [command-list (java.util.ArrayList.)]
       (doseq [chunk command]
         (.add command-list chunk))
