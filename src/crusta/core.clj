@@ -131,15 +131,13 @@
   (->> processes
        (partition 2 1)
        (pmap (fn [[src dest]]
-               (println (pr-str src))
-               (println (pr-str dest))
                (with-open [out ^InputStream (stdout-stream src)
                            in ^OutputStream (stdin-stream dest)]
                  (io/copy out in))))
        doall)
   {:processes processes
-   :stdin (:stdin (first processes))
-   :stdout (:stdout (last processes))})
+   :stdin (stdin-stream (first processes))
+   :stdout (stdout-stream (last processes))})
 
 
 ;;; Private
