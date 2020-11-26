@@ -13,12 +13,10 @@
             [utilis.string :refer [split]]
             [clojure.java.io :as io]
             [clojure.string :as st])
-  (:import [java.util ArrayList]
-           [java.io InputStream OutputStream BufferedReader]))
+  (:import [java.io InputStream OutputStream BufferedReader]
+           [java.util ArrayList]))
 
 (declare prepare-command stream->seq)
-
-;;; Public
 
 (defn exec
   "Executes the 'command' represented as a string or a sequence of strings
@@ -48,9 +46,14 @@
        :stderr (.getErrorStream process)})))
 
 (defn kill
-  "Kills the process referenced by 'process'"
-  [process]
-  (.destroy ^Process (:process process)))
+  "Kills the process or pipe referenced by 'process-or-pipe'"
+  [process-or-pipe]
+  (cond
+    (:process process-or-pipe) (.destroy ^Process (:process process-or-pipe))
+    (:processes process-or-pipe) (let [{:keys [processes pipe]} process-or-pipe]
+                                   (doall (map future-cancel pipe))
+                                   (doall (map kill processes))))
+  (dissoc process-or-pipe :pipe))
 
 (defn exit-code
   "Returns the exit code for 'process'. If the process has not exited,
@@ -128,14 +131,18 @@
   the stdin for the next. The stdin for the first process and the stdout for
   the last process are exposed. Processes are created with 'exec'"
   [& processes]
-  (->> processes
-       (partition 2 1)
-       (pmap (fn [[src dest]]
-               (with-open [out ^InputStream (stdout-stream src)
-                           in ^OutputStream (stdin-stream dest)]
-                 (io/copy out in))))
-       doall)
   {:processes processes
+   :pipe (->> processes
+              (partition 2 1)
+              (map (fn [[src dest]]
+                     (future
+                       (try
+                         (with-open [out ^InputStream (stdout-stream src)
+                                     in ^OutputStream (stdin-stream dest)]
+                           (io/copy out in))
+                         nil
+                         (catch java.util.concurrent.CancellationException _ nil)))))
+              doall)
    :stdin (stdin-stream (first processes))
    :stdout (stdout-stream (last processes))})
 
