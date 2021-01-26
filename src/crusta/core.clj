@@ -13,11 +13,10 @@
             [utilis.string :refer [split]]
             [clojure.java.io :as io]
             [clojure.string :as st])
-  (:import [java.io InputStream OutputStream BufferedReader]))
+  (:import [java.io InputStream OutputStream BufferedReader]
+           [java.util ArrayList]))
 
 (declare prepare-command stream->seq)
-
-;;; Public
 
 (defn exec
   "Executes the 'command' represented as a string or a sequence of strings
@@ -35,55 +34,65 @@
   [command & {:keys [environment clear-environment
                      directory
                      redirect-stderr]}]
-  (let [builder (ProcessBuilder. (prepare-command command))]
+  (let [builder (ProcessBuilder. ^ArrayList (prepare-command command))]
     (when clear-environment (.clear (.environment builder)))
     (doseq [[k v] environment] (.put (.environment builder) k v))
     (when directory (.directory builder (io/file directory)))
     (when redirect-stderr (.redirectErrorStream builder true))
-    (.start builder)))
+    (let [^Process process (.start builder)]
+      {:process process
+       :stdin (.getOutputStream process)
+       :stdout (.getInputStream process)
+       :stderr (.getErrorStream process)})))
 
 (defn kill
-  "Kills the process referenced by 'process'"
-  [^Process process]
-  (.destroy process))
+  "Kills the process or pipe referenced by 'process-or-pipe'"
+  [process-or-pipe]
+  (cond
+    (:process process-or-pipe) (.destroy ^Process (:process process-or-pipe))
+    (:processes process-or-pipe) (let [{:keys [processes pipe]} process-or-pipe]
+                                   (doall (map future-cancel pipe))
+                                   (doall (map kill processes))))
+  (dissoc process-or-pipe :pipe))
 
 (defn exit-code
   "Returns the exit code for 'process'. If the process has not exited,
   the call will block until the process exits. An optional :timeout
   in ms can be supplied to prevent blocking forever. ':timeout' will
   be returned if the timeout expires before the process exits."
-  [^Process process & {:keys [timeout]}]
-  (if-not timeout
-    (.waitFor process)
-    (deref (future (.waitFor process)) timeout :timeout)))
-
-(defn stdout-stream
-  "Returns an InputStream containing the contents of stdout for 'process'"
-  [^Process process]
-  (.getInputStream process))
-
-(defn stdout-seq
-  "Returns a lazy sequence containing the lines of text in stdout for 'process'"
-  [^Process process]
-  (stream->seq (stdout-stream process)))
+  [process & {:keys [timeout]}]
+  (let [^Process process (:process process)]
+    (if-not timeout
+      (.waitFor process)
+      (deref (future (.waitFor process)) timeout :timeout))))
 
 (defn stdin-stream
   "Returns an OutputStream connected to the stdin of 'process'"
-  [^Process process]
-  (.getOutputStream process))
+  [process]
+  (:stdin process))
+
+(defn stdout-stream
+  "Returns an InputStream containing the contents of stdout for 'process'"
+  [process]
+  (:stdout process))
+
+(defn stdout-seq
+  "Returns a lazy sequence containing the lines of text in stdout for 'process'"
+  [process]
+  (stream->seq (stdout-stream process)))
 
 (defn stderr-stream
   "Returns an InputStream containing the contents of stderr for 'process'.
   A nil will be returned if :redirect-stderr was passed to 'exec' when
   launching the process."
-  [^Process process]
-  (.getErrorStream process))
+  [process]
+  (:stderr process))
 
 (defn stderr-seq
   "Returns a lazy sequence containing the lines of text in stderr for 'process'.
   A nil will be returned if :redirect-stderr was passed to 'exec' when
   launching the process."
-  [^Process process]
+  [process]
   (stream->seq (stderr-stream process)))
 
 (defn run
@@ -117,7 +126,28 @@
                          :stdout (st/join "\n" (stdout-seq process))
                          :stderr (st/join "\n" (stderr-seq process))}))))))
 
-;;; Implementation
+(defn pipe
+  "Executes a series of 'processes' piping the stdout from one process into
+  the stdin for the next. The stdin for the first process and the stdout for
+  the last process are exposed. Processes are created with 'exec'"
+  [& processes]
+  {:processes processes
+   :pipe (->> processes
+              (partition 2 1)
+              (map (fn [[src dest]]
+                     (future
+                       (try
+                         (with-open [out ^InputStream (stdout-stream src)
+                                     in ^OutputStream (stdin-stream dest)]
+                           (io/copy out in))
+                         nil
+                         (catch java.util.concurrent.CancellationException _ nil)))))
+              doall)
+   :stdin (stdin-stream (first processes))
+   :stdout (stdout-stream (last processes))})
+
+
+;;; Private
 
 (defn- prepare-command
   [command]
@@ -127,7 +157,7 @@
                                (if (vector? segment)
                                  [(st/join " " segment)]
                                  (split segment)))))]
-    (let [command-list (java.util.ArrayList.)]
+    (let [command-list (ArrayList.)]
       (doseq [chunk command]
         (.add command-list chunk))
       command-list)))
